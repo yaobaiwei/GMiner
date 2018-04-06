@@ -1,0 +1,46 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/data/hzchen/GMiner_release/util/iniparser/dictionary.c
+dictionary.h
+/data/hzchen/GMiner_release/util/iniparser/dictionary.h
+stdio.h
+-
+stdlib.h
+-
+string.h
+-
+unistd.h
+-
+
+/data/hzchen/GMiner_release/util/iniparser/dictionary.h
+stdio.h
+-
+stdlib.h
+-
+string.h
+-
+unistd.h
+-
+
+/data/hzchen/GMiner_release/util/iniparser/iniparser.c
+ctype.h
+-
+iniparser.h
+/data/hzchen/GMiner_release/util/iniparser/iniparser.h
+
+/data/hzchen/GMiner_release/util/iniparser/iniparser.h
+stdio.h
+-
+stdlib.h
+-
+string.h
+-
+dictionary.h
+/data/hzchen/GMiner_release/util/iniparser/dictionary.h
+

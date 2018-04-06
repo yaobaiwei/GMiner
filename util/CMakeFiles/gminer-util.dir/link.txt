@@ -1,0 +1,2 @@
+/data/opt/brew/bin/ar qc libgminer-util.a  CMakeFiles/util-objs.dir/global.cpp.o CMakeFiles/util-objs.dir/hdfs_core.cpp.o CMakeFiles/util-objs.dir/minhash.cpp.o CMakeFiles/util-objs.dir/threadpool.cpp.o CMakeFiles/util-objs.dir/timer.cpp.o iniparser/CMakeFiles/iniparser-objs.dir/dictionary.c.o iniparser/CMakeFiles/iniparser-objs.dir/iniparser.c.o
+/data/opt/brew/bin/ranlib libgminer-util.a

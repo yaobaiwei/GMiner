@@ -1,0 +1,1 @@
+/data/opt/brew/bin/mpic++   -std=c++11 -O3 -Wno-deprecated -m64  -rdynamic CMakeFiles/cd.dir/community.cpp.o  -o ../release/cd ../util/libgminer-util.a -lhdfs -lpthread 

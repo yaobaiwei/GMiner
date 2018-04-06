@@ -1,0 +1,1 @@
+/data/opt/brew/bin/mpic++   -std=c++11 -O3 -Wno-deprecated -m64  -rdynamic CMakeFiles/gm.dir/graphmatch.cpp.o  -o ../release/gm ../util/libgminer-util.a -lhdfs -lpthread 
