@@ -69,15 +69,9 @@ $ cd $GMINER_HOME
 $ mpiexec -n {num_workers} -f machines.cfg $GMINER_HOME/release/partition /hdfs_path/to/dataset/  /hdfs_path/to/input/ {partition_method}
 ```
 
-**{partition_method}** has some default implementations and contains 2 main parts: format and  strategy. Case in point, `normal_bdg` indicates the format of dataset is just `normal` without label or attribute and the partition strategy is `bdg` as our paper proposed.
+**partition_method**: We provide 2 default partitioning strategy with 3 input graph formats. Case in point, `normal_bdg` indicates the format of the graph dataset is `normal` without label or attributes and the partition strategy is `bdg` as our paper proposed.
 
-- Provided {partition_method}:
-
- format: `normal`, `label`, `attr` </br>
-strategy: `bdg`,`hash` </br>
-**{partition_method}**: </br>
- `normal_bdg`, `label_bdg`, `attr_bdg` </br>
-`normal_hash`, `label_hash`, `attr_hash` </br>
+- They are `normal_bdg`, `label_bdg`, `attr_bdg`, `normal_hash`, `label_hash`, `attr_hash` respectively.
 
 - Note: `multi_attr` is an optional flag(argument) following the **{partition_method}** when the format of a dataset has multiple attributes.
 
