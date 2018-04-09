@@ -1,1 +1,0 @@
-/data/opt/brew/bin/mpic++   -std=c++11 -O3 -Wno-deprecated -m64  -rdynamic CMakeFiles/mc.dir/maxclique.cpp.o  -o ../release/mc ../util/libgminer-util.a -lhdfs -lpthread 

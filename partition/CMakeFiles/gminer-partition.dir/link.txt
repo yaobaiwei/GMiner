@@ -1,2 +1,0 @@
-/data/opt/brew/bin/ar qc libgminer-partition.a  CMakeFiles/gminer-partition.dir/BGlobal.cpp.o
-/data/opt/brew/bin/ranlib libgminer-partition.a
