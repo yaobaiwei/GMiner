@@ -34,6 +34,9 @@ $ ./auto-build.sh
 
 [**Eurosys 2018**] [G-Miner: An Efficient Task-Oriented Graph Mining System](docs/G-Miner-Eurosys18.pdf). Hongzhi Chen, Miao Liu, Yunjian Zhao, Xiao Yan, Da Yan, James Cheng.
 
+## Acknowledgement
+The subgraph-centric vertex-pulling API is attributed to our prior work [G-thinker](https://arxiv.org/abs/1709.03110).
+
 ## License
 
 Copyright 2018 Husky Data Lab, CUHK
