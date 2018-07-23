@@ -21,6 +21,9 @@ G-Miner, a distributed toolkit, a popular framework for large-scale graph proces
   G-Miner is built with the same dependencies of our previous project [Pregel+](http://www.cse.cuhk.edu.hk/pregelplus/index.html). To install G-Miner's dependencies (e.g., MPI, HDFS), using the instructions in this [guide](http://www.cse.cuhk.edu.hk/pregelplus/documentation.html).
 
 * **Build**
+
+Please manually MODIFY the dependency path for MPI and HDFS in CMakeLists.txt in root directory.
+
 ```bash
 $ export GMINER_HOME=/path/to/gminer_root  # must configure this ENV
 $ cd $GMINER_HOME
