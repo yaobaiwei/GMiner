@@ -232,6 +232,8 @@ TaskT* Slave<TaskT, AggregatorT>::recursive_compute(TaskT* task)
 template <class TaskT,  class AggregatorT>
 void Slave<TaskT, AggregatorT>::pull_PQ_to_CMQ()
 {
+	queue<ibinstream> streams;
+	queue<MPI_Request> mpi_requests;
 	while(1)
 	{
 		TaskVec tasks;
@@ -308,10 +310,19 @@ void Slave<TaskT, AggregatorT>::pull_PQ_to_CMQ()
 			int dst = (_my_rank + i) % _num_workers; //to avoid receiver-side bottleneck
 			if(dst != MASTER_RANK && requests[dst].size() > 0) //only send if there are requests //essentially, won't request to itself
 			{
-				ibinstream m;
-				set_req(m, requests[dst]);
-				send_ibinstream(m, dst, REQUEST_CHANNEL);
+				streams.push(ibinstream());
+				mpi_requests.push(MPI_Request());
+				set_req(streams.back(), requests[dst]);
+				send_ibinstream_nonblock(streams.back(), dst, REQUEST_CHANNEL, mpi_requests.back());
 				dsts.push_back(dst);
+			}
+			if(mpi_requests.size() > 0){
+				int test_flag;
+				MPI_Test(&(mpi_requests.front()), &test_flag, MPI_STATUS_IGNORE);
+				if(test_flag){
+					mpi_requests.pop();
+					streams.pop();
+				}
 			}
 		}
 		TaskPackage<TaskT> pkg(tasks, dsts);
@@ -321,6 +332,7 @@ void Slave<TaskT, AggregatorT>::pull_PQ_to_CMQ()
 		std::unique_lock<std::mutex> lck(vtx_req_lock_);
 		if((vtx_req_count_-vtx_resp_count_)>=VTX_REQ_MAX_GAP)
 			vtx_req_cond_.wait(lck);
+		
 	}
 }
 
@@ -430,15 +442,28 @@ template <class TaskT,  class AggregatorT>
 void Slave<TaskT, AggregatorT>::recv_run()
 {
 	int num_end_tag = 0;
+	queue<ibinstream> streams;
+	queue<MPI_Request> requests;
 	while(num_end_tag < (_num_workers-1))
 	{
 		obinstream um = recv_obinstream(MPI_ANY_SOURCE, REQUEST_CHANNEL);
-		ibinstream m;
-		int dst = set_resp(m, um);
+		streams.push(ibinstream());
+		int dst = set_resp(streams.back(), um);
 		if(dst < 0)
 			num_end_tag ++;
-		else
-			send_ibinstream(m, dst, RESPOND_CHANNEL);
+		else{
+			requests.push(MPI_Request());
+			send_ibinstream_nonblock(streams.back(), dst, RESPOND_CHANNEL, requests.back());
+		}
+
+		if(requests.size() > 0){
+			int test_flag;
+			MPI_Test(&requests.front(), &test_flag, MPI_STATUS_IGNORE);
+			if(test_flag){
+				streams.pop();
+				requests.pop();
+			}
+		}
 	}
 }
 
@@ -638,6 +663,8 @@ void Slave<TaskT, AggregatorT>::run(const WorkerParams& params)
 	cout << _my_rank << ": Regular Work Pipeline is Done, Start Task Stealing Stage." << endl;
 
 	//Task Stealing Step
+	queue<ibinstream> streams;
+	queue<MPI_Request> requests;
 	while(1)
 	{
 		send_data(get_worker_id(), MASTER_RANK, SCHEDULE_REPORT_CHANNEL);
@@ -651,9 +678,10 @@ void Slave<TaskT, AggregatorT>::run(const WorkerParams& params)
 			//request a task from the corresponding worker
 			//and
 			//receive the task, recompute the remote vertices and do computation
-			ibinstream m;
-			set_steal(m);
-			send_ibinstream(m, tgt_wid, REQUEST_CHANNEL);
+			streams.push(ibinstream());
+			requests.push(MPI_Request());
+			set_steal(streams.back());
+			send_ibinstream_nonblock(streams.back(), tgt_wid, REQUEST_CHANNEL, requests.back());
 
 			TaskVec tasks;
 			int num;
@@ -671,6 +699,15 @@ void Slave<TaskT, AggregatorT>::run(const WorkerParams& params)
 			task_sorter_.sign_and_sort_tasks(tasks, signed_tasks);
 			task_pipeline_.pq_push_back(signed_tasks);
 			run_to_no_task();
+
+			if(requests.size() > 0){
+				int test_flag;
+				MPI_Test(&requests.front(), &test_flag, MPI_STATUS_IGNORE);
+				if(test_flag){
+					streams.pop();
+					requests.pop();
+				}
+			}
 		}
 	}
 

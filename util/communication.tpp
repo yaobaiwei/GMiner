@@ -60,20 +60,34 @@ int pregel_recv(void* buf, int size, int src, int tag) //return the actual sourc
 }
 
 //============================================
-void send_ibinstream(ibinstream& m, int dst, int tag)
-{
-	size_t size = m.size();
-	pregel_send(&size, sizeof(size_t), dst, tag);
-	pregel_send(m.get_buf(), m.size(), dst, tag);
+inline void send_ibinstream_nonblock(ibinstream& m, int dst, int tag, MPI_Request& request){
+	MPI_Isend(m.get_buf(), m.size(), MPI_CHAR, dst, tag, MPI_COMM_WORLD, &request);
 }
 
-obinstream recv_obinstream(int src, int tag)
+
+void send_ibinstream(ibinstream& m, int dst, int tag)
 {
-	size_t size;
-	src = pregel_recv(&size, sizeof(size_t), src, tag); //must receive the content (paired with the msg-size) from the msg-size source
-	char* buf = new char[size];
-	pregel_recv(buf, size, src, tag);
-	return obinstream(buf, size);
+	MPI_Request request;
+	send_ibinstream_nonblock(m, dst, tag, request);
+	MPI_Wait(&request, MPI_STATUS_IGNORE);
+}
+
+obinstream recv_obinstream_dynamic(int src, int tag){
+    int size;
+    MPI_Status status;
+    MPI_Message message;
+    MPI_Mprobe(src, tag, MPI_COMM_WORLD, &message, &status);
+    MPI_Get_count(&status, MPI_CHAR, &size);
+    src = status.MPI_SOURCE;
+
+    char* buf = new char[size];
+	MPI_Mrecv((void*)buf, size, MPI_CHAR, &message, MPI_STATUS_IGNORE);
+    return obinstream(buf, (size_t)size);
+}
+
+inline obinstream recv_obinstream(int src, int tag)
+{
+	return recv_obinstream_dynamic(src, tag);
 }
 
 //============================================
