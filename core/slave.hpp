@@ -96,7 +96,7 @@ public:
 	virtual VertexT* respond(const VertexT* v);
 
 private:
-
+    
 	//PART 3 =======================================================
 	//communication primitives
 
@@ -157,7 +157,7 @@ private:
 	bool cache_overflow_;  	//record the status of cache
 
 	atomic_int merged_file_num_;
-
+    atomic_int task_count_;
 	bool is_end_;
 	bool report_end_;
 

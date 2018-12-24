@@ -31,5 +31,7 @@ set(GMINER_EXTERNAL_LIBRARIES ${HDFS_LIBRARY_DIR})
 add_subdirectory(util)
 
 add_subdirectory(put)
+add_definitions(-DPARTITION)
 add_subdirectory(partition)
+remove_definitions(-DPARTITION)
 add_subdirectory(apps)
