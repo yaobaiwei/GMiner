@@ -40,8 +40,7 @@ using namespace std;
 #else
 #define MASTER_RANK (_num_workers - 1)
 #endif
-
-const int SLAVE_LEADER = 0;
+static int SLAVE_LEADER = 0;
 
 //============================
 
