@@ -15,6 +15,7 @@ Slave<TaskT, AggregatorT>::Slave()
 	report_end_ = false;
 	threadpool_size_ = NUM_COMP_THREAD;
 	vtx_req_count_=vtx_resp_count_=0;
+    task_count_ = 0;
 }
 
 //PART 2 =======================================================
@@ -143,6 +144,7 @@ void Slave<TaskT, AggregatorT>::grow_tasks()
 	VertexT* v = local_table_.next();
 	while(v)
 	{
+	    task_count_ ++;
 		TaskT * t = create_task(v);
 		if(t != NULL)
 		{
@@ -234,6 +236,8 @@ void Slave<TaskT, AggregatorT>::pull_PQ_to_CMQ()
 {
 	queue<ibinstream> streams;
 	queue<MPI_Request> mpi_requests;
+	int test_flag;
+
 	while(1)
 	{
 		TaskVec tasks;
@@ -317,7 +321,6 @@ void Slave<TaskT, AggregatorT>::pull_PQ_to_CMQ()
 				dsts.push_back(dst);
 			}
 			if(mpi_requests.size() > 0){
-				int test_flag;
 				MPI_Test(&(mpi_requests.front()), &test_flag, MPI_STATUS_IGNORE);
 				if(test_flag){
 					mpi_requests.pop();
@@ -332,7 +335,12 @@ void Slave<TaskT, AggregatorT>::pull_PQ_to_CMQ()
 		std::unique_lock<std::mutex> lck(vtx_req_lock_);
 		if((vtx_req_count_-vtx_resp_count_)>=VTX_REQ_MAX_GAP)
 			vtx_req_cond_.wait(lck);
-		
+	}
+	// wait for all send finish in order to avoid stream destroy
+	while(mpi_requests.size() > 0){
+		MPI_Wait(&(mpi_requests.front()), MPI_STATUS_IGNORE);
+		mpi_requests.pop();
+		streams.pop();
 	}
 }
 
@@ -464,6 +472,11 @@ void Slave<TaskT, AggregatorT>::recv_run()
 				requests.pop();
 			}
 		}
+	}
+	while(requests.size() > 0){
+		MPI_Wait(&(requests.front()), MPI_STATUS_IGNORE);
+		requests.pop();
+		streams.pop();
 	}
 }
 

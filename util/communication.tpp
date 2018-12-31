@@ -439,16 +439,13 @@ void master_scatter(vector<T>& to_send)
 	int size = 0;
 	for (int i = 0; i < _num_workers; i++)
 	{
-		if (i == _my_rank)
-		{
-			sendcounts[i] = 0;
-		}
-		else
-		{
+	    if(i !=	_my_rank){
 			m << to_send[i];
 			sendcounts[i] = m.size() - size;
 			size = m.size();
-		}
+        }
+        else
+            sendcounts[i] = 0;
 	}
 	StopTimer(SERIALIZATION_TIMER);
 

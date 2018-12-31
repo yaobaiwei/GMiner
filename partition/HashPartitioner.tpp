@@ -67,6 +67,7 @@ void HashPartitioner<BHashVertexT>::run(const WorkerParams& params)
 		        it != assigned_splits.end(); it++)
 			load_graph(it->c_str());
 		delete arrangement;
+        std::cout << _my_rank <<" vertex "<<vertexes_.size() <<std::endl;
 	}
 	else
 	{
@@ -76,6 +77,7 @@ void HashPartitioner<BHashVertexT>::run(const WorkerParams& params)
 		for (vector<string>::iterator it = assigned_splits.begin();
 		        it != assigned_splits.end(); it++)
 			load_graph(it->c_str());
+        std::cout << _my_rank <<" vertex "<<vertexes_.size() <<std::endl;
 	}
 
 	//send vertices according to hash_id (reduce)
