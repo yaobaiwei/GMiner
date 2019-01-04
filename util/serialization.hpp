@@ -84,6 +84,22 @@ public:
 	obinstream();
 	obinstream(char* b, size_t s);
 	obinstream(char* b, size_t s, size_t idx);
+    obinstream(const obinstream&);
+    obinstream(obinstream&&);
+    obinstream& operator = (const obinstream& ob){
+        size_ = ob.size_;
+        index_ = ob.index_;
+        buf_ = new char[size_];
+        memcpy(buf_, ob.buf_, size_);
+        return *this;
+    }
+    obinstream& operator = (obinstream&& ob){
+        size_ = ob.size_;
+        index_ = ob.index_;
+        buf_ = ob.buf_;
+        ob.buf_ = NULL;
+        return *this;
+    }
 	~obinstream();
 
 	char raw_byte();
