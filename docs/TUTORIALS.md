@@ -42,15 +42,17 @@ normal_sample.adj  label_sample.adj  attr_sample.adj  multi_attr_sample.adj
 ```
 
 - User defined format:
-When using user-defined Partitioner and Application classes, we may also need to implement virtual functions as our paper proposed in order to control the formats </br>
-`to_vertex()` in `User-Defined-Partitioner`: specify the input format of a partition program </br>
-`to_line()` in `User-Defined-Partitioner`: specify the output (to hdfs) format of a partition program </br>
-`to_vertex()` in `User-Defined-Application`: specify the input format of an application and it should match the output format of the partitioned data. </br>
+When using user-defined Partitioner and Application classes, the users need to implement the virtual functions in order to control the formats </br>
+`to_vertex()` in `User-Defined-Partitioner`: specify the input format for a partition program </br>
+`to_line()` in `User-Defined-Partitioner`: specify the output (to hdfs) format for a partition program </br>
+`to_vertex()` in `User-Defined-Application`: specify the input format for an application and it should match with the output format of the partitioned data. </br>
 
 
 <a name="put"></a>
 ## Uploading the dataset to HDFS
-G-Miner requires that a large graph data is partitioned into smaller files under the same data folder, and these files are loaded by different G-Miner processes. To achieve this goal, we cannot use the command `hadoop fs -put {local-file} {hdfs-path}` directly. Otherwise, the data file is loaded by one G-Miner process, and the other processes simply wait for it to finish loading.
+G-Miner requires that a large graph data is partitioned into smaller files under the same data folder, and these files are loaded by different computing processes during graph computing.
+
+To achieve this goal, we cannot use the command `hadoop fs -put {local-file} {hdfs-path}` directly. Otherwise, the data file is loaded by one G-Miner process, and the other processes simply wait for it to finish loading.
 
 We remark that parallel loading only speeds up data loading, and has no influence on the performance of graph partitioning and computing.
 
@@ -125,7 +127,7 @@ worker3
 **2)** Launch a G-Miner application generally
 
 ```bash
-$ mpiexec -genv MPIR_CVAR_CH3_EAGER_MAX_MSG_SIZE=134217728 -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/app {app_arguments}
+$ mpiexec -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/app {app_arguments}
 ```
 
 Note: compared with the partition, G-Miner's app needs an extra MPI process playing the role of "master", so we use **{num_workers+1}** instead.
@@ -140,26 +142,26 @@ Note: compared with the partition, G-Miner's app needs an extra MPI process play
 - Triangle Counting (TC) </br>
 It takes a non-attributed graph as the input and uses only the 1-hop neighbors of each vertex in the computation period.
 ```bash
-$ mpiexec -genv MPIR_CVAR_CH3_EAGER_MAX_MSG_SIZE=134217728 -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/tc
+$ mpiexec -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/tc
 ```
 
 - Graph Matching (GM) </br>
 It is a fundamental operation for graph mining and network analysis which takes a labeled graph as the input.
 ```bash
-$ mpiexec -genv MPIR_CVAR_CH3_EAGER_MAX_MSG_SIZE=134217728 -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/gm
+$ mpiexec -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/gm
 ```
 
 - Maximum Clique Finding (MCF) </br>
 It is applied on non-attributed graphs and can be computed based on the 1-hop neighborhood. We followed [**The Maximum Clique Problem**](http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.56.6221) to implement an efficient algorithm with optimized pruning strategy on G-Miner.
 ```bash
-$ mpiexec -genv MPIR_CVAR_CH3_EAGER_MAX_MSG_SIZE=134217728 -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/mc
+$ mpiexec -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/mc
 ```
 
 - Community Detection (CD) </br>
 It defines a set of vertices which share common attributes and together form a dense subgraph as a community. We adopted a [**state-of-art algorithm**](https://link.springer.com/content/pdf/10.1007/3-540-45066-1_22.pdf) to mine the dense subgraph topology and guarantee the similarity of attributes in a community by a filtering condition on newly added vertex candidates.
 ```bash
 $ export K_THRESHOLD="3"
-$ mpiexec -genv MPIR_CVAR_CH3_EAGER_MAX_MSG_SIZE=134217728 -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/cd  "${K_THRESHOLD}"
+$ mpiexec -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/cd  "${K_THRESHOLD}"
 ```
 
 - Graph Clustering (GC) (FocusCO) </br>
@@ -171,5 +173,5 @@ $ export MIN_RESULT_SIZE="5"  #threshold that only store the result cluster with
 $ export DIFF_RATIO="0.001"   #threshold for judging two weight is similarity or not
 $ export ITER_ROUND_MAX="10"  #threshold that only compute number of iterations < ITER_ROUND_MAX with each task
 $ export CAND_MAX_TIME="3"    #threshold that only compute the top CAND_MAX_TIME*subgraph_size candidates in each round during computation
-$ mpiexec -genv MPIR_CVAR_CH3_EAGER_MAX_MSG_SIZE=134217728 -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/fco "${MIN_WEIGHT}" "${MIN_CORE_SIZE}" "${MIN_RESULT_SIZE}" "${DIFF_RATIO}" "${ITER_ROUND_MAX}" "${CAND_MAX_TIME}"
+$ mpiexec -n {num_workers+1} -f machines.cfg $GMINER_HOME/release/fco "${MIN_WEIGHT}" "${MIN_CORE_SIZE}" "${MIN_RESULT_SIZE}" "${DIFF_RATIO}" "${ITER_ROUND_MAX}" "${CAND_MAX_TIME}"
 ```
