@@ -21,6 +21,8 @@
 #include "util/serialization.hpp"
 #include "util/type.hpp"
 
+#include "third_party/zmq.hpp"
+
 using namespace std;
 
 
@@ -40,6 +42,7 @@ public:
 	virtual void print_result() {}
 
 	Master();
+	~Master();
 
 	void agg_sync();
 	void context_sync();
@@ -64,6 +67,12 @@ private:
 
 	map<int, Progress> progress_map_;
 
+	// ZMQ sockets
+	zmq::context_t zmq_context_;
+	vector<zmq::socket_t*> schedule_report_senders_;
+	zmq::socket_t* schedule_report_receiver_;
+	zmq::socket_t* schedule_heartbeat_receiver_;
+	zmq::socket_t* mscommun_receiver_;
 };
 
 

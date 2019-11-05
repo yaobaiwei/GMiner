@@ -639,3 +639,50 @@ MSG slave_bcastCMD()
 
 	return cmd;
 }
+
+//================================================================
+// ZMQ communication
+void zmq_send(zmq::socket_t* socket, const ibinstream& data, int flag = 0)
+{
+	zmq::message_t msg(data.size());
+	memcpy(reinterpret_cast<void *>(msg.data()), data.get_buf(), data.size());
+
+	socket->send(msg, flag);
+}
+
+template <class T>
+void zmq_send(zmq::socket_t* socket, const T& data)
+{
+	ibinstream m;
+	m << data;
+
+	zmq::message_t msg(m.size());
+	memcpy(reinterpret_cast<void *>(msg.data()), m.get_buf(), m.size());
+
+	socket->send(msg);
+}
+
+void zmq_recv(zmq::socket_t* socket, obinstream& ret)
+{
+	zmq::message_t msg;
+	assert(socket->recv(&msg) > 0);
+
+	char *buf = new char[msg.size()];
+	memcpy(buf, msg.data(), msg.size());
+	ret.assign(buf, msg.size(), 0);
+}
+
+template <class T>
+void zmq_recv(zmq::socket_t* socket, T& ret)
+{
+	zmq::message_t msg;
+	assert(socket->recv(&msg) > 0);
+
+	obinstream m;
+
+	char *buf = new char[msg.size()];
+	memcpy(buf, msg.data(), msg.size());
+	m.assign(buf, msg.size(), 0);
+
+	m >> ret;
+}

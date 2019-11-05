@@ -35,6 +35,8 @@
 #include "core/vertex.hpp"
 #include "core/vertex_table.hpp"
 
+#include "third_party/zmq.hpp"
+
 using namespace std;
 
 
@@ -79,13 +81,7 @@ public:
 
 	Slave();
 
-	virtual ~Slave()
-	{
-		local_table_.clear();
-		cache_table_.clear();
-		rm_dir(PQUE_DIR);
-		rm_dir(MERGE_DIR);
-	}
+	~Slave();
 
 	void run(const WorkerParams& params);
 
@@ -184,6 +180,17 @@ private:
 	mutex vtx_req_lock_;
 	condition_variable vtx_req_cond_;
 
+	// ZMQ sockets
+	zmq::context_t zmq_context_;
+	zmq::socket_t* schedule_report_sender_;
+	zmq::socket_t* schedule_report_receiver_;
+	zmq::socket_t* schedule_heartbeat_sender_;
+	zmq::socket_t* mscommun_sender_;
+	zmq::socket_t* request_receiver_;
+	vector<zmq::socket_t*> request_senders_main_thread_;
+	vector<zmq::socket_t*> request_senders_pull_pq_;
+	vector<zmq::socket_t*> respond_senders_;
+	vector<zmq::socket_t*> respond_receivers_;
 };
 
 

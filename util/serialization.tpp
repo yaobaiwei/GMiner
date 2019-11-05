@@ -7,6 +7,11 @@ char* ibinstream::get_buf()
 	return &buf_[0];
 }
 
+const char* ibinstream::get_buf() const
+{
+	return &buf_[0];
+}
+
 void ibinstream::raw_byte(char c)
 {
 	buf_.push_back(c);
@@ -17,7 +22,7 @@ void ibinstream::raw_bytes(const void* ptr, int size)
 	buf_.insert(buf_.end(), (const char*)ptr, (const char*)ptr + size);
 }
 
-size_t ibinstream::size()
+size_t ibinstream::size() const
 {
 	return buf_.size();
 }

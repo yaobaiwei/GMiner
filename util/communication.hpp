@@ -13,6 +13,8 @@
 #include "util/serialization.hpp"
 #include "util/timer.hpp"
 
+#include "third_party/zmq.hpp"
+
 //============================================
 
 int all_sum(int my_copy);

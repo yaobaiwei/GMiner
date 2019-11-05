@@ -20,12 +20,13 @@ class ibinstream
 {
 public:
 	char* get_buf();
+    const char* get_buf() const;
 
 	void raw_byte(char c);
 
 	void raw_bytes(const void* ptr, int size);
 
-	size_t size();
+	size_t size() const;
 
 	void clear();
 

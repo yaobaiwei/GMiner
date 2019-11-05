@@ -6,7 +6,7 @@
 //constructor
 
 template <class TaskT,  class AggregatorT>
-Slave<TaskT, AggregatorT>::Slave()
+Slave<TaskT, AggregatorT>::Slave() : zmq_context_(1)
 {
 	cache_size_ = CACHE_SIZE;
 	cache_overflow_ = false;
@@ -15,7 +15,74 @@ Slave<TaskT, AggregatorT>::Slave()
 	report_end_ = false;
 	threadpool_size_ = NUM_COMP_THREAD;
 	vtx_req_count_=vtx_resp_count_=0;
-    task_count_ = 0;
+	task_count_ = 0;
+
+	// Receive a busy worker's id from master
+	schedule_report_receiver_ = new zmq::socket_t(zmq_context_, ZMQ_PULL);
+	schedule_report_receiver_->bind(GetTcpAddress("*", _workers_info[_my_rank].port + SCHEDULE_REPORT_PORT));
+	
+	// Send a request to the master for a busy worker to steal tasks
+	schedule_report_sender_ = new zmq::socket_t(zmq_context_, ZMQ_PUSH);
+	schedule_report_sender_->connect(GetTcpAddress(_workers_info[MASTER_RANK].hostname, _workers_info[MASTER_RANK].port + SCHEDULE_REPORT_PORT));
+
+	// Send heartbeat progress report to the master
+	schedule_heartbeat_sender_ = new zmq::socket_t(zmq_context_, ZMQ_PUSH);
+	schedule_heartbeat_sender_->connect(GetTcpAddress(_workers_info[MASTER_RANK].hostname, _workers_info[MASTER_RANK].port + SCHEDULE_HEARTBEAT_PORT));
+
+	// Send a message to master when computation is ended
+	mscommun_sender_ = new zmq::socket_t(zmq_context_, ZMQ_PUSH);
+	mscommun_sender_->connect(GetTcpAddress(_workers_info[MASTER_RANK].hostname, _workers_info[MASTER_RANK].port + MSCOMMUN_PORT));
+
+	// Receive {stealing, pulling vertices, end_tag} requests from other workers
+	request_receiver_ = new zmq::socket_t(zmq_context_, ZMQ_PULL);
+	request_receiver_->bind(GetTcpAddress("*", _workers_info[_my_rank].port + REQUEST_PORT));
+
+	for (int i = 0; i < _num_workers - 1; i++)
+	{
+		// Used in the main thread, send {stealing, end_tag} requests to other workers
+		zmq::socket_t* request_sender = new zmq::socket_t(zmq_context_, ZMQ_PUSH);
+		request_sender->connect(GetTcpAddress(_workers_info[i].hostname, _workers_info[i].port + REQUEST_PORT));
+		request_senders_main_thread_.push_back(request_sender);
+
+		// Used in the thread of pull_PQ_to_CMQ, send pulling vertices requests to other workers
+		request_sender = new zmq::socket_t(zmq_context_, ZMQ_PUSH);
+		request_sender->connect(GetTcpAddress(_workers_info[i].hostname, _workers_info[i].port + REQUEST_PORT));
+		request_senders_pull_pq_.push_back(request_sender);
+
+		// Send corresponding responds for the received requests
+		zmq::socket_t* respond_sender = new zmq::socket_t(zmq_context_, ZMQ_PUSH);
+		respond_sender->connect(GetTcpAddress(_workers_info[i].hostname, _workers_info[i].port + RESPOND_PORT + _my_rank));
+		respond_senders_.push_back(respond_sender);
+
+		// 1. In the main thread, receive stolen tasks from a busy worker
+		// 2. In the thread of pull_CMQ_to_CPQ, receive requested vertices from a remote worker
+		zmq::socket_t* respond_receiver_ = new zmq::socket_t(zmq_context_, ZMQ_PULL);
+		respond_receiver_->bind(GetTcpAddress("*", _workers_info[_my_rank].port + RESPOND_PORT + i));
+		respond_receivers_.push_back(respond_receiver_);
+	}
+}
+
+template <class TaskT,  class AggregatorT>
+Slave<TaskT, AggregatorT>::~Slave()
+{
+	local_table_.clear();
+	cache_table_.clear();
+	rm_dir(PQUE_DIR);
+	rm_dir(MERGE_DIR);
+
+	// destroy ZMQ sockets
+	delete schedule_report_sender_;
+	delete schedule_report_receiver_;
+	delete schedule_heartbeat_sender_;
+	delete mscommun_sender_;
+	delete request_receiver_;
+	for (int i = 0; i < _num_workers - 1; i++)
+	{
+		delete request_senders_main_thread_[i];
+		delete request_senders_pull_pq_[i];
+		delete respond_senders_[i];
+		delete respond_receivers_[i];
+	}
 }
 
 //PART 2 =======================================================
@@ -144,7 +211,7 @@ void Slave<TaskT, AggregatorT>::grow_tasks()
 	VertexT* v = local_table_.next();
 	while(v)
 	{
-	    task_count_ ++;
+		task_count_ ++;
 		TaskT * t = create_task(v);
 		if(t != NULL)
 		{
@@ -234,8 +301,6 @@ TaskT* Slave<TaskT, AggregatorT>::recursive_compute(TaskT* task)
 template <class TaskT,  class AggregatorT>
 void Slave<TaskT, AggregatorT>::pull_PQ_to_CMQ()
 {
-	queue<ibinstream> streams;
-	queue<MPI_Request> mpi_requests;
 	int test_flag;
 
 	while(1)
@@ -314,18 +379,10 @@ void Slave<TaskT, AggregatorT>::pull_PQ_to_CMQ()
 			int dst = (_my_rank + i) % _num_workers; //to avoid receiver-side bottleneck
 			if(dst != MASTER_RANK && requests[dst].size() > 0) //only send if there are requests //essentially, won't request to itself
 			{
-				streams.push(ibinstream());
-				mpi_requests.push(MPI_Request());
-				set_req(streams.back(), requests[dst]);
-				send_ibinstream_nonblock(streams.back(), dst, REQUEST_CHANNEL, mpi_requests.back());
+				ibinstream stream;
+				set_req(stream, requests[dst]);
+				zmq_send(request_senders_pull_pq_[dst], stream, ZMQ_DONTWAIT);
 				dsts.push_back(dst);
-			}
-			if(mpi_requests.size() > 0){
-				MPI_Test(&(mpi_requests.front()), &test_flag, MPI_STATUS_IGNORE);
-				if(test_flag){
-					mpi_requests.pop();
-					streams.pop();
-				}
 			}
 		}
 		TaskPackage<TaskT> pkg(tasks, dsts);
@@ -335,12 +392,6 @@ void Slave<TaskT, AggregatorT>::pull_PQ_to_CMQ()
 		std::unique_lock<std::mutex> lck(vtx_req_lock_);
 		if((vtx_req_count_-vtx_resp_count_)>=VTX_REQ_MAX_GAP)
 			vtx_req_cond_.wait(lck);
-	}
-	// wait for all send finish in order to avoid stream destroy
-	while(mpi_requests.size() > 0){
-		MPI_Wait(&(mpi_requests.front()), MPI_STATUS_IGNORE);
-		mpi_requests.pop();
-		streams.pop();
 	}
 }
 
@@ -356,7 +407,8 @@ void Slave<TaskT, AggregatorT>::pull_CMQ_to_CPQ()
 		vector<int>& dsts = pkg.dsts;
 		for(int i = 0; i < dsts.size(); i++)
 		{
-			obinstream um = recv_obinstream(dsts[i], RESPOND_CHANNEL);
+			obinstream um;
+			zmq_recv(respond_receivers_[dsts[i]], um);
 			int num;
 			um >> num;
 			for(int i=0; i<num; i++)
@@ -450,33 +502,18 @@ template <class TaskT,  class AggregatorT>
 void Slave<TaskT, AggregatorT>::recv_run()
 {
 	int num_end_tag = 0;
-	queue<ibinstream> streams;
-	queue<MPI_Request> requests;
 	while(num_end_tag < (_num_workers-1))
 	{
-		obinstream um = recv_obinstream(MPI_ANY_SOURCE, REQUEST_CHANNEL);
-		streams.push(ibinstream());
-		int dst = set_resp(streams.back(), um);
+		obinstream um;
+		zmq_recv(request_receiver_, um);
+
+		ibinstream stream;
+		int dst = set_resp(stream, um);
 		if(dst < 0)
 			num_end_tag ++;
 		else{
-			requests.push(MPI_Request());
-			send_ibinstream_nonblock(streams.back(), dst, RESPOND_CHANNEL, requests.back());
+			zmq_send(respond_senders_[dst], stream, ZMQ_DONTWAIT);
 		}
-
-		if(requests.size() > 0){
-			int test_flag;
-			MPI_Test(&requests.front(), &test_flag, MPI_STATUS_IGNORE);
-			if(test_flag){
-				streams.pop();
-				requests.pop();
-			}
-		}
-	}
-	while(requests.size() > 0){
-		MPI_Wait(&(requests.front()), MPI_STATUS_IGNORE);
-		requests.pop();
-		streams.pop();
 	}
 }
 
@@ -489,7 +526,7 @@ void Slave<TaskT, AggregatorT>::end_recver()
 	{
 		int dst = (_my_rank + i) % _num_workers; //to avoid receiver-sided bottleneck
 		if( dst != MASTER_RANK)
-			send_ibinstream(m, dst, REQUEST_CHANNEL);
+			zmq_send(request_senders_main_thread_[dst], m);
 	}
 }
 
@@ -500,7 +537,8 @@ void Slave<TaskT, AggregatorT>::report_to_master(unsigned long long mem_tasks, u
 	progress.push_back(_my_rank);
 	progress.push_back(mem_tasks);
 	progress.push_back(disk_tasks);
-	send_data(progress, MASTER_RANK, SCHEDULE_HEARTBEAT_CHANNEL);
+
+	zmq_send(schedule_heartbeat_sender_, progress);
 }
 
 template <class TaskT,  class AggregatorT>
@@ -518,7 +556,7 @@ void Slave<TaskT, AggregatorT>::end_report()
 {
 	report_to_master(-1,-1);
 	report_end_ = true;
-	send_data(DONE, MASTER_RANK, MSCOMMUN_CHANNEL);
+	zmq_send<int>(mscommun_sender_, DONE);
 }
 
 template <class TaskT,  class AggregatorT>
@@ -585,10 +623,10 @@ void Slave<TaskT, AggregatorT>::debug()
 	while(!is_end_)
 	{
 		cout << _my_rank << " => Tasks in MEM = " << get_task_num_in_memory() \
-		     << " | Tasks in DISK = " << get_task_num_in_disk() \
-		     << " | CommunQ.size = " << task_pipeline_.cmq_size()*PIPE_POP_NUM \
-		     << " | ComputeQ.size = " << task_pipeline_.cpq_size() \
-		     << " | TaskBuff.size = " << task_pipeline_.taskbuf_size() <<endl;
+			 << " | Tasks in DISK = " << get_task_num_in_disk() \
+			 << " | CommunQ.size = " << task_pipeline_.cmq_size()*PIPE_POP_NUM \
+			 << " | ComputeQ.size = " << task_pipeline_.cpq_size() \
+			 << " | TaskBuff.size = " << task_pipeline_.taskbuf_size() <<endl;
 
 		sleep(1);
 	}
@@ -676,12 +714,12 @@ void Slave<TaskT, AggregatorT>::run(const WorkerParams& params)
 	cout << _my_rank << ": Regular Work Pipeline is Done, Start Task Stealing Stage." << endl;
 
 	//Task Stealing Step
-	queue<ibinstream> streams;
-	queue<MPI_Request> requests;
 	while(1)
 	{
-		send_data(get_worker_id(), MASTER_RANK, SCHEDULE_REPORT_CHANNEL);
-		int tgt_wid = recv_data<int>(MASTER_RANK, SCHEDULE_REPORT_CHANNEL);
+		zmq_send<int>(schedule_report_sender_, get_worker_id());
+		int tgt_wid;
+		zmq_recv<int>(schedule_report_receiver_, tgt_wid);
+
 		if(tgt_wid == NO_WORKER_BUSY)
 		{
 			break;
@@ -691,15 +729,17 @@ void Slave<TaskT, AggregatorT>::run(const WorkerParams& params)
 			//request a task from the corresponding worker
 			//and
 			//receive the task, recompute the remote vertices and do computation
-			streams.push(ibinstream());
-			requests.push(MPI_Request());
-			set_steal(streams.back());
-			send_ibinstream_nonblock(streams.back(), tgt_wid, REQUEST_CHANNEL, requests.back());
+			ibinstream stream;
+			set_steal(stream);
+
+			zmq_send(request_senders_main_thread_[tgt_wid], stream, ZMQ_DONTWAIT);
 
 			TaskVec tasks;
 			int num;
 
-			obinstream um = recv_obinstream(tgt_wid, RESPOND_CHANNEL);
+			obinstream um;
+			zmq_recv(respond_receivers_[tgt_wid], um);
+
 			um >> num;
 			for(int i=0; i<num; i++)
 			{
@@ -712,15 +752,6 @@ void Slave<TaskT, AggregatorT>::run(const WorkerParams& params)
 			task_sorter_.sign_and_sort_tasks(tasks, signed_tasks);
 			task_pipeline_.pq_push_back(signed_tasks);
 			run_to_no_task();
-
-			if(requests.size() > 0){
-				int test_flag;
-				MPI_Test(&requests.front(), &test_flag, MPI_STATUS_IGNORE);
-				if(test_flag){
-					streams.pop();
-					requests.pop();
-				}
-			}
 		}
 	}
 

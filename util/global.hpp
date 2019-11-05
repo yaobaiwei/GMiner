@@ -19,6 +19,7 @@
 #include <limits.h>
 #include <stddef.h>
 #include <string.h>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 
@@ -35,6 +36,18 @@ using namespace std;
 //============================
 // worker info
 
+// For ZMQ usage
+struct WorkerInfo
+{
+	string hostname;
+	int port;
+};
+
+inline static string GetTcpAddress(string hostname, int port)
+{
+	return "tcp://" + hostname + ":" + to_string(port);
+}
+
 #ifdef PARTITION
 #define MASTER_RANK 0
 #else
@@ -46,6 +59,7 @@ static int SLAVE_LEADER = 0;
 
 extern int _my_rank;
 extern int _num_workers;
+extern vector<WorkerInfo> _workers_info;  // For ZMQ usage
 
 inline int get_worker_id()
 {
@@ -191,14 +205,15 @@ enum MSG
 	REQUEST_TASK = -4
 };
 
+// offsets of ports
+const int SCHEDULE_REPORT_PORT = 0;
+const int SCHEDULE_HEARTBEAT_PORT = 1;
+const int MSCOMMUN_PORT = 2;
+const int REQUEST_PORT = 3;
+const int RESPOND_PORT = 4;
+
 const int COMM_CHANNEL_200=200;
-const int REQUEST_CHANNEL=201;
-const int RESPOND_CHANNEL=202;
-const int AGG_REQ_CHANNEL=203;
-const int AGG_RES_CHANNEL=204;
 const int MSCOMMUN_CHANNEL=205;
-const int SCHEDULE_HEARTBEAT_CHANNEL=206;
-const int SCHEDULE_REPORT_CHANNEL=207;
 
 const int COMMUN_TIME=1;
 

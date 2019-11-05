@@ -15,7 +15,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
-set(COMMON_LINK_LIBS "-lhdfs -lpthread") #-ljvm 
+set(COMMON_LINK_LIBS "-lhdfs -lpthread") #-ljvm
+
+set(ZMQ_ROOT "/path/to/zmq")
 
 ### mpicc&mpic++ will fix MPI_INCLUDE&MPI_LIBRARY themselves
 #set(MPI_INCLUDE_DIR "/data/opt/brew/include")
@@ -25,7 +27,12 @@ add_definitions(-DUSE_HDFS2_)  #use hdfs v2.x.x by defalut
 set(HDFS_INCLUDE_DIR "/data/opt/hadoop-2.6.0/include/")
 set(HDFS_LIBRARY_DIR "/data/opt/hadoop-2.6.0/lib/native/")
 
-set(GMINER_EXTERNAL_INCLUDES  ${HDFS_INCLUDE_DIR})
+# External Dependencies
+include(cmake/modules/zmq.cmake)
+
+set(COMMON_LINK_LIBS "${COMMON_LINK_LIBS}  ${ZMQ_LIBRARIES}") #-ljvm
+
+set(GMINER_EXTERNAL_INCLUDES  ${HDFS_INCLUDE_DIR} ${ZMQ_INCLUDE_DIR})
 set(GMINER_EXTERNAL_LIBRARIES ${HDFS_LIBRARY_DIR})
 
 add_subdirectory(util)

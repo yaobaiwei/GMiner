@@ -224,6 +224,7 @@ double LOCAL_RATE=0.5;
 // #of seconds for sleep in thread context_sync
 int SLEEP_TIME=0;
 
+vector<WorkerInfo> _workers_info;  // For ZMQ usage
 
 void load_hdfs_config()
 {
@@ -344,6 +345,38 @@ void load_system_parameters(WorkerParams& param)
 
 
 	iniparser_freedict(ini);
+
+	// Read hostnames with ports in $GMINER_HOME/ports.cfg, needed for ZMQ
+	string ports_conf_path(GMINER_HOME);
+	ports_conf_path.append("/ports.cfg");
+
+	ifstream port_f(ports_conf_path);
+	if (port_f.good())
+	{
+		for (int i = 0; i < _num_workers; i++)
+		{
+			string line;
+			port_f >> line;
+			size_t hostname_pos = line.find(":");
+			assert(hostname_pos != string::npos);
+
+			WorkerInfo info;
+
+			info.hostname = line.substr(0, hostname_pos);
+			info.port = stoi(line.substr(hostname_pos + 1).c_str());
+
+			if (_my_rank == 0)
+			{
+				printf("%s : %d\n", info.hostname.c_str(), info.port);
+			}
+
+			_workers_info.push_back(info);
+		}
+	}
+	else
+	{
+		assert(false);
+	}
 }
 
 //=====================================================================

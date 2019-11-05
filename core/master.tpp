@@ -3,10 +3,41 @@
 
 
 template <class AggregatorT>
-Master<AggregatorT>::Master()
+Master<AggregatorT>::Master() : zmq_context_(1)
 {
 	is_end_ = false;
+
+	// Receive stealing requests from workers
+	schedule_report_receiver_ = new zmq::socket_t(zmq_context_, ZMQ_PULL);
+	schedule_report_receiver_->bind(GetTcpAddress("*", _workers_info[_my_rank].port + SCHEDULE_REPORT_PORT));
+
+	// Send a busy worker id to an nunoccupied worker
+	for (int i = 0; i < _num_workers - 1; i++) {
+		zmq::socket_t* schedule_report_sender = new zmq::socket_t(zmq_context_, ZMQ_PUSH);
+		schedule_report_sender->connect(GetTcpAddress(_workers_info[i].hostname, _workers_info[i].port + SCHEDULE_REPORT_PORT));
+		schedule_report_senders_.push_back(schedule_report_sender);
+	}
+
+	// Receive heartbeat progress report from workers
+	schedule_heartbeat_receiver_ = new zmq::socket_t(zmq_context_, ZMQ_PULL);
+	schedule_heartbeat_receiver_->bind(GetTcpAddress("*", _workers_info[_my_rank].port + SCHEDULE_HEARTBEAT_PORT));
+
+	// Receive messages from workers identifying the end of computation
+	mscommun_receiver_ = new zmq::socket_t(zmq_context_, ZMQ_PULL);
+	mscommun_receiver_->bind(GetTcpAddress("*", _workers_info[_my_rank].port + MSCOMMUN_PORT));
 }
+
+template <class AggregatorT>
+Master<AggregatorT>::~Master()
+{
+	for (int i = 0; i < _num_workers - 1; i++) {
+		delete schedule_report_senders_[i];
+	}
+	delete schedule_report_receiver_;
+	delete schedule_heartbeat_receiver_;
+	delete mscommun_receiver_;
+}
+
 
 template <class AggregatorT>
 void Master<AggregatorT>::agg_sync()
@@ -88,7 +119,9 @@ void Master<AggregatorT>::schedule_listen()
 {
 	while(1)
 	{
-		vector<unsigned long long> prog = recv_data<vector<unsigned long long>>(MPI_ANY_SOURCE, SCHEDULE_HEARTBEAT_CHANNEL);
+		vector<unsigned long long> prog;
+		zmq_recv(schedule_heartbeat_receiver_, prog);
+
 		int src = prog[0];  //the slave ID
 		Progress & p = progress_map_[src];
 		if(prog[1] != -1)
@@ -131,9 +164,13 @@ void Master<AggregatorT>::task_steal()
 	int end_count = 0;
 	while(end_count < (_num_workers-1))
 	{
-		int request_worker_id = recv_data<int>(MPI_ANY_SOURCE, SCHEDULE_REPORT_CHANNEL);
+		int request_worker_id;
+		zmq_recv<int>(schedule_report_receiver_, request_worker_id);
+
 		int target_worker_id = progress_scheduler(request_worker_id);
-		send_data(target_worker_id, request_worker_id, SCHEDULE_REPORT_CHANNEL);
+
+		zmq_send<int>(schedule_report_senders_[request_worker_id], target_worker_id);
+		
 		if(target_worker_id == NO_WORKER_BUSY)
 			end_count++;
 	}
@@ -167,7 +204,8 @@ void Master<AggregatorT>::run(const WorkerParams& params)
 	int end_tag = 0;
 	while(end_tag < (_num_workers-1))
 	{
-		int tag = recv_data<int>(MPI_ANY_SOURCE, MSCOMMUN_CHANNEL);
+		int tag;
+		zmq_recv(mscommun_receiver_, tag);
 		if(tag == DONE)
 		{
 			end_tag++;
