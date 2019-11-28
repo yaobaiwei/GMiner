@@ -215,13 +215,16 @@ void TaskSorter<TaskT>::last_merge_seed_tasks(PQue& pque, int fnum, int level)
 	{
 		vector<KTpair> tasks;
 		int size = buffer.size() / 2;
-		for(int i = 0 ; i < size; i ++)
+		if (size != 0)
 		{
-			tasks.push_back(buffer.front());
-			buffer.pop();
+			for(int i = 0 ; i < size; i ++)
+			{
+				tasks.push_back(buffer.front());
+				buffer.pop();
+			}
+			pque.add_block(tasks);
+			tasks.clear();
 		}
-		pque.add_block(tasks);
-		tasks.clear();
 
 		size = buffer.size();
 		for(int i = 0 ; i < size; i ++)
