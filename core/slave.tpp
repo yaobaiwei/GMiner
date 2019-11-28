@@ -158,7 +158,12 @@ int Slave<TaskT, AggregatorT>::set_resp(ibinstream & m, obinstream & um)//return
 		int tgt;
 		um >> tgt;
 		TaskVec remote_tasks;
+		compute_lock_.lock();
 		task_pipeline_.pq_pop_front_to_remote(remote_tasks);
+		compute_lock_.unlock();
+		// After pq_pop_front_to_remote, TASK_IN_DISK_NUM will decrease
+		// Thus, notify the conpute_cond_ for run_to_no_task()
+		compute_cond_.notify_one();
 		int num = remote_tasks.size();
 		m << num;
 		for(int i = 0; i < num; i++)
