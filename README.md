@@ -20,9 +20,12 @@ Graph mining is one of the most important areas in data mining. However, scalabl
 
 To install G-Miner's dependencies (G++, MPI, JDK, HDFS), please follow the instructions in our project [webpage](http://www.cse.cuhk.edu.hk/systems/gminer/deploy.html).
 
+[**New**] We used [ZMQ](https://github.com/zeromq/libzmq/) lib to support asynchronously communication in v1.1.0, please also install libzmq according to this [instruction](https://github.com/zeromq/libzmq/blob/master/INSTALL).
+
+
 * **Build**
 
-Please manually MODIFY the dependency path for MPI and HDFS in CMakeLists.txt at the root directory.
+Please manually MODIFY the dependency path for MPI/HDFS/ZMQ in CMakeLists.txt at the root directory.
 
 ```bash
 $ export GMINER_HOME=/path/to/gminer_root  # must configure this ENV
