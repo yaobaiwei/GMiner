@@ -186,7 +186,7 @@ void BDGPartitioner<BDGPartVertexT>::partition(vector<blockInfo> & blocks_info, 
 			cmIter = countmap[j].find(cur.color);
 			if (cmIter != countmap[j].end())
 			{
-				priority = cmIter->second * (1 - assigned[j] / capacity);  //calculate the priority of each work for current block
+				priority = cmIter->second * (1 - assigned[j] / (double)capacity);  //calculate the priority of each work for current block
 			}
 			if ((priority > max) && (assigned[j] + cur.size <= capacity))
 			{
